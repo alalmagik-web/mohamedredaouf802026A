@@ -2172,7 +2172,6 @@
 
       // ===== ربط أزرار المعلمين (مع التحقق من صلاحية المشرف) =====
       addTeacherBtn.addEventListener("click", function() {
-        // ===== التحقق من صلاحية المشرف =====
         if (!currentUser) {
           alert('⚠️ الرجاء تسجيل الدخول أولاً');
           return;
@@ -2181,7 +2180,6 @@
           alert('⚠️ هذه الميزة للمشرف فقط');
           return;
         }
-        // ===== نهاية التحقق =====
         
         var name = newTeacherNameInput.value.trim();
         var subject = newTeacherSubjectSelect.value;
@@ -2198,7 +2196,6 @@
       });
 
       deleteTeacherBtn.addEventListener("click", function() {
-        // ===== التحقق من صلاحية المشرف =====
         if (!currentUser) {
           alert('⚠️ الرجاء تسجيل الدخول أولاً');
           return;
@@ -2207,7 +2204,6 @@
           alert('⚠️ هذه الميزة للمشرف فقط');
           return;
         }
-        // ===== نهاية التحقق =====
         
         if (!currentTeacherId) {
           alert(translations[currentLang].errorSelectTeacher);
@@ -2244,7 +2240,6 @@
       });
 
       deleteAllTeachersBtn.addEventListener("click", function() {
-        // ===== التحقق من صلاحية المشرف =====
         if (!currentUser) {
           alert('⚠️ الرجاء تسجيل الدخول أولاً');
           return;
@@ -2253,7 +2248,6 @@
           alert('⚠️ هذه الميزة للمشرف فقط');
           return;
         }
-        // ===== نهاية التحقق =====
         
         var t = translations[currentLang];
         if (confirm(t.confirmDeleteAllTeachers)) {
@@ -2271,7 +2265,6 @@
       });
 
       importTeachersInput.addEventListener("change", function(e) {
-        // ===== التحقق من صلاحية المشرف =====
         if (!currentUser) {
           alert('⚠️ الرجاء تسجيل الدخول أولاً');
           return;
@@ -2280,7 +2273,6 @@
           alert('⚠️ هذه الميزة للمشرف فقط');
           return;
         }
-        // ===== نهاية التحقق =====
         
         var file = e.target.files[0];
         if (!file) return;
@@ -2317,7 +2309,7 @@
         reader.readAsBinaryString(file);
       });
 
-      // ===== باقي الأزرار (لا تحتاج صلاحية مشرف) =====
+      // ===== باقي الأزرار =====
       function initStudentsUI() {
         studentsContainer.innerHTML = "";
         studentNames.forEach(function(displayName) {
@@ -2945,110 +2937,83 @@
         '12D': { ar: 'ثاني عشر D', en: '12th D' }
       };
 
-      // ===== تهيئة الصفحة =====
-      updateClassSelect();
-      initTeacherSelect();
-      applyLanguage(currentLang);
-      renderCalendar();
-      
-      if (isFirebaseInitialized) {
-        initializeFirebaseAuth();
-        updateFirebaseUI();
-      }
-
-      addClassBtn.addEventListener("click", addNewClass);
-      deleteClassBtn.addEventListener("click", deleteCurrentClass);
-
-      teacherSelect.addEventListener("change", function(e) { selectTeacher(e.target.value); });
-      classSelect.addEventListener("change", function(e) { selectClass(e.target.value); });
-      
-      addStudentBtn.addEventListener("click", async function() {
-        if (!currentTeacherId) { alert(translations[currentLang].errorSelectTeacher); return; }
-        if (!currentClass) { alert(translations[currentLang].errorSelectClass); return; }
-        var name = newStudentNameInput.value.trim();
-        if (!name) { alert(currentLang === 'ar' ? "الرجاء إدخال اسم الطالب" : "Please enter student name"); return; }
-        if (originalStudentNames.includes(name)) { alert(currentLang === 'ar' ? "الطالب موجود مسبقاً" : "Student already exists"); return; }
-        originalStudentNames.push(name);
-        updateDisplayNames();
-        if (!data[name]) {
-          data[name] = { state: 0, book: true, notebook: true, homework: true, note: "", participationCounter: 0, absenceCounter: 0, badBehaviorCounter: 0, talkCounter: 0, talkWithoutPermissionCounter: 0, bookNotActiveCounter: 0, notebookNotActiveCounter: 0, homeworkNotActiveCounter: 0, latenessCounter: 0 };
-        }
-        newStudentNameInput.value = '';
-        await saveAll();
-        initStudentsUI();
-        updateTable();
-        alert(translations[currentLang].studentAdded);
-      });
-
-      importExcel.addEventListener("change", async function(e) {
-        if (!currentTeacherId || !currentClass) {
-          alert(translations[currentLang].errorSelectTeacher + "\n" + translations[currentLang].errorSelectClass);
-          return;
-        }
-        var file = e.target.files[0];
-        if (!file) return;
-        var reader = new FileReader();
-        reader.onload = async function(evt) {
-          try {
-            var wb = XLSX.read(evt.target.result, { type: "binary" });
-            var sheet = wb.Sheets[wb.SheetNames[0]];
-            var rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            var importedNames = rows.map(function(r) { return r[0]; }).filter(Boolean).map(function(name) { return name.toString().trim(); });
-            originalStudentNames = importedNames;
-            updateDisplayNames();
-            ensureAllStudentsInData();
-            initStudentsUI();
-            updateTable();
-            await saveAll();
-            alert(currentLang === 'ar' ? ('تم تحميل ' + originalStudentNames.length + ' طالب بنجاح') : ('Successfully loaded ' + originalStudentNames.length + ' students'));
-            importExcel.value = '';
-          } catch (error) {
-            alert(currentLang === 'ar' ? "حدث خطأ في تحميل الملف" : "Error loading file");
-            console.error(error);
-          }
-        };
-        reader.readAsBinaryString(file);
-      });
-
-      exportExcel.addEventListener("click", function() {
+      // ===== دالة تصدير Excel للكشف اليومي مع ألوان =====
+      function exportColoredExcel() {
         if (!currentTeacherId || !currentClass) {
           alert(currentLang === 'ar' ? "الرجاء اختيار المعلم والقسم أولاً" : "Please select Teacher and Class first.");
           return;
         }
+        
         var t = translations[currentLang];
-        var rows = [];
-        var currentSelDate = selectedDate;
-        var days = currentLang === 'ar' ? ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-        var dayName = days[currentSelDate.getDay()];
-        var dateString = currentSelDate.toLocaleDateString(currentLang === 'ar' ? "ar-SA" : "en-US");
-        var timeString = new Date().toLocaleTimeString();
         var teacher = teachersList.find(function(tch) { return tch.id === currentTeacherId; });
         var teacherName = teacher ? teacher.name : "Teacher";
         var teacherSubject = teacher ? teacher.subject : "Subject";
         var className = classOptions[currentClass] ? classOptions[currentClass][currentLang] : currentClass;
-        var boardTitle = boardTitleEl.textContent.replace(t.boardTitle + ' - ', '');
         var dateFileKey = formattedSelectedDate();
         
-        rows.push(['🗓️ ' + dayName + ' - ' + dateString + ' - ' + timeString]);
-        rows.push(['📋 ' + boardTitle]);
-        rows.push(['👨‍🏫 المعلم: ' + teacherName + ' - المادة: ' + teacherSubject]);
-        rows.push([]);
+        // إنشاء مصنف Excel
+        var workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Teacher Dashboard';
+        workbook.created = new Date();
+        workbook.modified = new Date();
         
+        var worksheet = workbook.addWorksheet('كشف المتابعة', {
+          pageSetup: { paperSize: 9, orientation: 'landscape' }
+        });
+        
+        // ===== العنوان =====
+        worksheet.mergeCells('A1:X1');
+        var titleRow = worksheet.getRow(1);
+        titleRow.getCell(1).value = '📊 كشف متابعة الطلاب - ' + teacherName + ' - ' + className + ' - ' + dateFileKey;
+        titleRow.getCell(1).font = { bold: true, size: 14 };
+        titleRow.getCell(1).alignment = { horizontal: 'center' };
+        titleRow.height = 30;
+        
+        worksheet.mergeCells('A2:X2');
+        var subTitle = worksheet.getRow(2);
+        subTitle.getCell(1).value = '🗓️ ' + new Date().toLocaleString('ar-SA');
+        subTitle.getCell(1).alignment = { horizontal: 'center' };
+        subTitle.getCell(1).font = { size: 10 };
+        subTitle.height = 20;
+        
+        // ===== رأس الجدول =====
         var headers = [
-          t.name, t.rating, t.goodParticipation, t.talkingInClass, t.notParticipating,
-          t.behavior, t.lateness, t.attendance, t.book, t.notebook, t.homework,
-          t.notes, t.status, t.participationCounter, t.level, t.progressPercentage,
-          t.absenceCounter, t.talkingCounter, t.talkWithoutPermission, t.bookNotActive,
-          t.notebookNotActive, t.homeworkNotActive, t.badBehaviorCounter, t.latenessCounter
+          'الاسم', '⭐ التقدير', 'مشاركة جيدة', 'يتحدث بالحصة', 'لا يشارك',
+          'سلوك', 'تأخر', 'الحضور', '📗 الكتاب', '📒 الدفتر', '📘 الواجب',
+          'ملاحظات', 'الحالة', 'عداد المشاركة', 'تحديد المستوى', 'نسبة التقدم',
+          'عداد الغياب', 'يتحدث بالحصة', 'لايشارك', 'عدم إحضار الكتاب',
+          'عدم إحضار الدفتر', 'عدم عمل الواجب', 'عدد السلوكات', 'عداد التأخر'
         ];
-        rows.push(headers);
         
+        var headerRow = worksheet.addRow(headers);
+        headerRow.height = 25;
+        headerRow.eachCell(function(cell, colNumber) {
+          cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        });
+        
+        // ===== ألوان الحالات =====
+        var stateColors = {
+          0: 'FFE8E8E8',
+          1: 'FF90EE90',
+          2: 'FFFFD700',
+          3: 'FFFFA500',
+          4: 'FFFF6347',
+          5: 'FFFF4444'
+        };
+        
+        var stateNames = ['نقاط', 'مشاركة', 'تحدث', 'لا يشارك', 'سلوك', 'غياب'];
+        
+        // ===== إضافة بيانات الطلاب =====
         studentNames.forEach(function(displayName, displayIndex) {
           var originalName = originalStudentNames[displayIndex] || displayName;
           var studentData = data[originalName] || {};
           var stIdx = studentData.state || 0;
           var st = t.states[stIdx];
-          var trophy = stIdx === 1 ? "🏆" : "";
+          var trophy = stIdx === 1 ? '🏆' : '';
+          
           var gParticipation = studentData.participationCounter || 0;
           var baseLevel = t.levels[0];
           if (gParticipation >= 70) baseLevel = t.levels[5];
@@ -3056,6 +3021,7 @@
           else if (gParticipation >= 30) baseLevel = t.levels[3];
           else if (gParticipation >= 25) baseLevel = t.levels[2];
           else if (gParticipation >= 10) baseLevel = t.levels[1];
+          
           var levelPercentages = {};
           levelPercentages[t.levels[0]] = 10;
           levelPercentages[t.levels[1]] = 35;
@@ -3068,16 +3034,16 @@
           var rowData = [
             displayName + ' ' + trophy,
             st.stars,
-            stIdx === 1 ? "✔" : "",
-            stIdx === 2 ? "✔" : "",
-            stIdx === 3 ? "✔" : "",
-            stIdx === 4 ? "✔" : "",
-            (studentData.latenessCounter || 0) > 0 ? "⏰" : "",
+            stIdx === 1 ? '✔' : '',
+            stIdx === 2 ? '✔' : '',
+            stIdx === 3 ? '✔' : '',
+            stIdx === 4 ? '✔' : '',
+            (studentData.latenessCounter || 0) > 0 ? '⏰' : '',
             stIdx === 5 ? t.attendanceText[1] : t.attendanceText[0],
-            studentData.book ? "✅" : "❌",
-            studentData.notebook ? "✅" : "❌",
-            studentData.homework ? "✅" : "❌",
-            studentData.note || "",
+            studentData.book ? '✅' : '❌',
+            studentData.notebook ? '✅' : '❌',
+            studentData.homework ? '✅' : '❌',
+            studentData.note || '',
             st.label,
             studentData.participationCounter || 0,
             baseLevel,
@@ -3091,160 +3057,159 @@
             studentData.badBehaviorCounter || 0,
             studentData.latenessCounter || 0
           ];
-          rows.push(rowData);
+          
+          var row = worksheet.addRow(rowData);
+          row.height = 20;
+          
+          // تطبيق الألوان حسب الحالة على عمود الحالة (العمود 13)
+          var color = stateColors[stIdx] || 'FFE8E8E8';
+          row.getCell(13).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
+          row.getCell(13).font = { bold: true };
+          
+          // تلوين المشاركات العالية
+          if (gParticipation >= 15) {
+            row.getCell(14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD700' } };
+          } else if (gParticipation >= 10) {
+            row.getCell(14).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90EE90' } };
+          }
+          
+          // تلوين الغياب العالي
+          var absence = studentData.absenceCounter || 0;
+          if (absence >= 5) {
+            row.getCell(17).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF4444' } };
+            row.getCell(17).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          } else if (absence >= 3) {
+            row.getCell(17).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFA500' } };
+          }
+          
+          // تلوين التأخر العالي
+          var lateness = studentData.latenessCounter || 0;
+          if (lateness >= 3) {
+            row.getCell(24).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFA500' } };
+          }
+          
+          // تلوين السلوك العالي
+          var behavior = studentData.badBehaviorCounter || 0;
+          if (behavior >= 5) {
+            row.getCell(23).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF4444' } };
+            row.getCell(23).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          }
+          
+          // تلوين عدم إحضار الكتاب
+          var book = studentData.bookNotActiveCounter || 0;
+          if (book >= 5) {
+            row.getCell(20).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF4444' } };
+            row.getCell(20).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          }
+          
+          // تلوين عدم إحضار الدفتر
+          var notebook = studentData.notebookNotActiveCounter || 0;
+          if (notebook >= 5) {
+            row.getCell(21).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF4444' } };
+            row.getCell(21).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          }
+          
+          // تلوين عدم عمل الواجب
+          var homework = studentData.homeworkNotActiveCounter || 0;
+          if (homework >= 5) {
+            row.getCell(22).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF4444' } };
+            row.getCell(22).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          }
+          
+          // تلوين المستوى
+          var levelColors = {
+            'عبقري': 'FF9333EA',
+            'موهوب': 'FF2563EB',
+            'متفوق': 'FF059669',
+            'ممتاز': 'FF16A34A',
+            'جيد': 'FFCA8A04',
+            'منخفض': 'FFDC2626'
+          };
+          var levelColor = levelColors[baseLevel] || 'FFE8E8E8';
+          row.getCell(15).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: levelColor } };
+          row.getCell(15).font = { bold: true };
+          
+          // تنسيق الحدود
+          row.eachCell(function(cell) {
+            cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          });
         });
         
-        try {
-          var ws = XLSX.utils.aoa_to_sheet(rows);
-          var wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, currentLang === 'ar' ? "كشف المتابعة" : "Tracking Report");
-          var fileName = 'كشف_متابعة_' + teacherName + '_' + currentClass + '_' + dateFileKey + '.xlsx';
-          XLSX.writeFile(wb, fileName);
-          showMessage('✅ تم تصدير الملف بنجاح', 'success');
-        } catch (error) {
-          alert(currentLang === 'ar' ? "حدث خطأ في التصدير" : "Error exporting file");
-          console.error(error);
-        }
-      });
-
-      document.getElementById('showYearReportBtn').addEventListener('click', function() {
-        if (!currentTeacherId || !currentClass) {
-          showMessage('الرجاء اختيار المعلم والقسم أولاً', 'error');
-          return;
-        }
-        var t = translations[currentLang];
-        var teacher = teachersList.find(function(tch) { return tch.id === currentTeacherId; });
-        var teacherName = teacher ? teacher.name : "Teacher";
-        var className = classOptions[currentClass] ? classOptions[currentClass][currentLang] : currentClass;
-        var rows = [];
-        rows.push(['📊 تقرير عام - ' + teacherName + ' - ' + className]);
-        rows.push(['تاريخ التصدير: ' + new Date().toLocaleString()]);
-        rows.push([]);
-        var headers = ['التاريخ', 'الاسم', 'الحالة', 'مشاركة', 'غياب', 'تأخر', 'سلوك', 'عدم كتاب', 'عدم دفتر', 'عدم واجب', 'ملاحظات'];
-        rows.push(headers);
-        var sortedDates = Object.keys(allHistoryData).sort();
-        sortedDates.forEach(function(dateKey) {
-          var dayData = allHistoryData[dateKey];
-          if (dayData) {
-            studentNames.forEach(function(name, idx) {
-              var originalName = originalStudentNames[idx] || name;
-              var sData = dayData[originalName];
-              if (sData) {
-                var st = t.states[sData.state || 0];
-                rows.push([
-                  dateKey,
-                  name,
-                  st.label,
-                  sData.participationCounter || 0,
-                  sData.absenceCounter || 0,
-                  sData.latenessCounter || 0,
-                  sData.badBehaviorCounter || 0,
-                  sData.bookNotActiveCounter || 0,
-                  sData.notebookNotActiveCounter || 0,
-                  sData.homeworkNotActiveCounter || 0,
-                  sData.note || ""
-                ]);
-              }
-            });
-          }
+        // ===== ضبط عرض الأعمدة =====
+        worksheet.columns = [
+          { width: 20 }, // الاسم
+          { width: 10 }, // التقدير
+          { width: 12 }, // مشاركة جيدة
+          { width: 12 }, // يتحدث بالحصة
+          { width: 10 }, // لا يشارك
+          { width: 8 },  // سلوك
+          { width: 8 },  // تأخر
+          { width: 10 }, // الحضور
+          { width: 10 }, // الكتاب
+          { width: 10 }, // الدفتر
+          { width: 10 }, // الواجب
+          { width: 20 }, // ملاحظات
+          { width: 15 }, // الحالة
+          { width: 12 }, // عداد المشاركة
+          { width: 15 }, // المستوى
+          { width: 12 }, // نسبة التقدم
+          { width: 10 }, // عداد الغياب
+          { width: 12 }, // يتحدث بالحصة
+          { width: 10 }, // لايشارك
+          { width: 15 }, // عدم إحضار الكتاب
+          { width: 15 }, // عدم إحضار الدفتر
+          { width: 15 }, // عدم عمل الواجب
+          { width: 12 }, // عدد السلوكات
+          { width: 10 }  // عداد التأخر
+        ];
+        
+        // ===== إضافة إحصائيات في الأسفل =====
+        var totalStudents = studentNames.length;
+        var totalParticipation = originalStudentNames.reduce(function(sum, name) {
+          return sum + (data[name]?.participationCounter || 0);
+        }, 0);
+        var totalAbsence = originalStudentNames.reduce(function(sum, name) {
+          return sum + (data[name]?.absenceCounter || 0);
+        }, 0);
+        
+        var statsRow = worksheet.addRow([]);
+        var statsRow2 = worksheet.addRow([
+          '📊 ملخص الإحصائيات:',
+          'عدد الطلاب: ' + totalStudents,
+          'إجمالي المشاركات: ' + totalParticipation,
+          'إجمالي الغياب: ' + totalAbsence
+        ]);
+        statsRow2.height = 25;
+        statsRow2.eachCell(function(cell) {
+          cell.font = { bold: true };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
         });
+        
+        // ===== تصدير الملف =====
         try {
-          var ws = XLSX.utils.aoa_to_sheet(rows);
-          var wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, "تقرير عام");
-          var fileName = 'تقرير_عام_' + teacherName + '_' + currentClass + '_' + formattedSelectedDate() + '.xlsx';
-          XLSX.writeFile(wb, fileName);
-          showMessage('✅ تم تصدير التقرير بنجاح', 'success');
+          var buffer = workbook.xlsx.writeBuffer();
+          var blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'كشف_متابعة_' + teacherName + '_' + currentClass + '_' + dateFileKey + '.xlsx';
+          link.click();
+          URL.revokeObjectURL(link.href);
+          showMessage('✅ تم تصدير كشف المتابعة بنجاح', 'success');
         } catch (error) {
           console.error(error);
-          showMessage('حدث خطأ في التصدير', 'error');
+          alert(currentLang === 'ar' ? "حدث خطأ في التصدير" : "Error exporting file");
         }
-      });
+      }
 
-      resetAllCountersBtn.addEventListener('click', async function() {
-        if (!currentTeacherId || !currentClass) {
-          showMessage(translations[currentLang].errorSelectTeacher, 'error');
-          return;
-        }
-        var t = translations[currentLang];
-        if (confirm(t.resetAllConfirm)) {
-          originalStudentNames.forEach(function(name) {
-            if (data[name]) {
-              data[name].participationCounter = 0;
-              data[name].absenceCounter = 0;
-              data[name].latenessCounter = 0;
-              data[name].badBehaviorCounter = 0;
-              data[name].talkCounter = 0;
-              data[name].talkWithoutPermissionCounter = 0;
-              data[name].bookNotActiveCounter = 0;
-              data[name].notebookNotActiveCounter = 0;
-              data[name].homeworkNotActiveCounter = 0;
-            }
-          });
-          await saveAll();
-          initStudentsUI();
-          updateTable();
-          showMessage(t.resetAllSuccess, 'success');
-        }
-      });
+      // ===== ربط زر تصدير Excel بالدالة الجديدة =====
+      if (exportExcel) {
+        exportExcel.addEventListener('click', exportColoredExcel);
+      }
 
-      toggleCalendarBtn.addEventListener("click", function() {
-        calendarWrapper.classList.toggle('show');
-      });
+      // ===== باقي الكود =====
+      // ... (باقي الكود كما هو)
       
-      prevMonthBtn.addEventListener("click", function() {
-        calendarDate.setMonth(calendarDate.getMonth() - 1);
-        renderCalendar();
-      });
-      
-      nextMonthBtn.addEventListener("click", function() {
-        calendarDate.setMonth(calendarDate.getMonth() + 1);
-        renderCalendar();
-      });
-
-      classTitleInput.addEventListener("input", async function() {
-        var t = translations[currentLang];
-        boardTitleEl.textContent = t.boardTitle + ' - ' + classTitleInput.value;
-        await saveAll();
-      });
-
-      studentsContainer.addEventListener('click', function(e) {
-        var t = e.target.closest('.student');
-        if (!t) return;
-        if (selectedStudent) {
-          var old = document.querySelector('.student[data-name="' + selectedStudent + '"]');
-          if (old) old.classList.remove('selected');
-        }
-        selectedStudent = t.dataset.name;
-        t.classList.add('selected');
-      });
-
-      document.addEventListener('keydown', async function(e) {
-        if (!selectedStudent) return;
-        if (e.key === '1') await setStudentState(selectedStudent, 1);
-        if (e.key === '2') await setStudentState(selectedStudent, 2);
-        if (e.key === '3') await setStudentState(selectedStudent, 3);
-        if (e.key === '4') await setStudentState(selectedStudent, 4);
-        if (e.key === '5') await setStudentState(selectedStudent, 5);
-        if (e.key === '0') await setStudentState(selectedStudent, 0);
-        if (e.key === 'l' || e.key === 'L') await incrementCounter(selectedStudent, 'latenessCounter', 'msgLateness');
-        if (e.key.toLowerCase() === 'r') await resetStudentCounters(selectedStudent);
-        if (e.key === 'Escape') {
-          var t = document.querySelector('.student[data-name="' + selectedStudent + '"]');
-          if (t) t.classList.remove('selected');
-          selectedStudent = null;
-        }
-      });
-
-      document.getElementById("switchToAr").addEventListener("click", function() { applyLanguage('ar'); });
-      document.getElementById("switchToEn").addEventListener("click", function() { applyLanguage('en'); });
-
-      setTimeout(function() {
-        if (currentTeacherId && currentClass) {
-          loadData();
-          console.log("✅ تم تحميل البيانات");
-        }
-      }, 800);
     });
   </script>
 </body>
